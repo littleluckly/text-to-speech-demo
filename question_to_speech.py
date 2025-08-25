@@ -302,20 +302,20 @@ class MarkdownQuestionParser:
     # question_num: 问题编号
     async def create_question_directory(self, question_data: Dict[str, Any], question_num: int):
         """为单个问题创建目录结构和相关文件"""
-        # 创建问题目录，格式为 q_0001, q_0002 等
-        question_dir = self.output_dir / f"q_{question_num:04d}"
-        # 创建目录，如果父目录不存在则自动创建，如果目录已存在则不报错
-        question_dir.mkdir(parents=True, exist_ok=True)
-        
         # 获取问题ID，如果没有ID则使用问题编号
         question_id = question_data['metadata'].get('id', f'q{question_num:04d}')
         # 截取ID的前8位字符，避免文件名过长
         id_prefix = str(question_id)[:8] if question_id else f'q{question_num:04d}'
         
-        # 定义音频文件路径，文件名前添加ID前缀
-        audio_simple_file = question_dir / f"{id_prefix}_audio_simple.mp3"  # 简单答案音频文件
-        audio_question_file = question_dir / f"{id_prefix}_audio_question.mp3"  # 问题音频文件
-        audio_analysis_file = question_dir / f"{id_prefix}_audio_analysis.mp3"  # 详细解析音频文件
+        # 创建问题目录，使用新的命名格式 q{编号}_{ID前缀}
+        question_dir = self.output_dir / f"q{question_num:04d}_{id_prefix}"
+        # 创建目录，如果父目录不存在则自动创建，如果目录已存在则不报错
+        question_dir.mkdir(parents=True, exist_ok=True)
+        
+        # 定义音频文件路径，使用新的命名格式
+        audio_simple_file = question_dir / f"q{question_num:04d}_{id_prefix}_audio_simple.mp3"  # 简单答案音频文件
+        audio_question_file = question_dir / f"q{question_num:04d}_{id_prefix}_audio_question.mp3"  # 问题音频文件
+        audio_analysis_file = question_dir / f"q{question_num:04d}_{id_prefix}_audio_analysis.mp3"  # 详细解析音频文件
         
         # 生成音频文件
         await self.generate_audio(question_data['simple_answer'], audio_simple_file)  # 生成简单答案音频
@@ -336,15 +336,16 @@ class MarkdownQuestionParser:
             'question_markdown': question_data['question'],  # 问题文本内容
             'answer_simple_markdown': question_data['simple_answer'],  # 简单答案文本内容
             'answer_analysis_markdown': question_data['detailed_analysis'],  # 详细解析文本内容
-            'files': {  # 文件映射，记录相关文件的路径（使用带ID前缀的新文件名）
-                'audio_simple': f'{id_prefix}_audio_simple.mp3',  # 简单答案音频文件
-                'audio_question': f'{id_prefix}_audio_question.mp3',  # 问题音频文件
-                'audio_analysis': f'{id_prefix}_audio_analysis.mp3'  # 详细解析音频文件
+            'files': {  # 文件映射，记录相关文件的路径（使用新的命名格式）
+                'audio_simple': f'q{question_num:04d}_{id_prefix}_audio_simple.mp3',  # 简单答案音频文件
+                'audio_question': f'q{question_num:04d}_{id_prefix}_audio_question.mp3',  # 问题音频文件
+                'audio_analysis': f'q{question_num:04d}_{id_prefix}_audio_analysis.mp3',  # 详细解析音频文件
+                'meta': f'q{question_num:04d}_{id_prefix}_meta.json'  # 元数据文件本身的文件名
             }
         }
         
-        # 定义meta.json文件路径
-        meta_file = question_dir / "meta.json"
+        # 定义meta.json文件路径，使用新的命名格式
+        meta_file = question_dir / f"q{question_num:04d}_{id_prefix}_meta.json"
         # 写入meta.json文件，使用UTF-8编码，保留中文字符不进行ASCII转义，缩进2个空格
         with open(meta_file, 'w', encoding='utf-8') as f:
             json.dump(meta_data, f, ensure_ascii=False, indent=2)
@@ -372,9 +373,18 @@ class MarkdownQuestionParser:
         for i, line in enumerate(lines):
             if line.strip() == '---':
                 # 检查这是否是frontmatter的开始
-                # 对于第一行或者下一行包含id:/type:等字段的情况
-                if i == 0 or (i + 1 < len(lines) and any(keyword in lines[i + 1] for keyword in ['id:', 'type:', 'difficulty:', 'tags:'])):
+                # 对于第一行或者在接下来的几行中包含id:/type:等字段的情况
+                if i == 0:
                     frontmatter_starts.append(i)
+                else:
+                    # 检查后面的几行是否包含 YAML 字段
+                    found_yaml_field = False
+                    for check_line in range(i + 1, min(i + 5, len(lines))):
+                        if any(keyword in lines[check_line] for keyword in ['id:', 'type:', 'difficulty:', 'tags:']):
+                            found_yaml_field = True
+                            break
+                    if found_yaml_field:
+                        frontmatter_starts.append(i)
         
         question_blocks = []  # 用于存储处理后的问题块
         

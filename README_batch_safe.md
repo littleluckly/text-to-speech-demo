@@ -88,23 +88,31 @@ pip install edge-tts markdown
 
 ```
 output/
-├── batch_processing.log     # 详细日志文件
-├── batch_progress.json      # 进度和状态记录
-├── q_0001/                  # 问题1目录
+├── batch_processing.log       # 详细日志文件
+├── batch_progress.json        # 进度和状态记录
+├── 285acd89_q0001/            # 问题1目录（ID前缀_问题编号）
 │   ├── 285acd89_audio_simple.mp3      # ID前缀_简答音频
 │   ├── 285acd89_audio_question.mp3    # ID前缀_问题音频
 │   ├── 285acd89_audio_analysis.mp3    # ID前缀_解析音频
-│   └── meta.json                      # 元数据和内容
-├── q_0002/                  # 问题2目录
+│   └── 285acd89_meta.json             # ID前缀_元数据文件
+├── 0ccadea6_q0002/            # 问题2目录
 │   └── ...
 └── ...
 ```
 
 ### 文件命名规则
 
-- 音频文件使用 ID 前缀（前 8 位字符）
-- 格式：`{ID前缀}_{类型}.mp3`
-- 如果没有 ID，使用 `q0001` 格式
+- **目录命名**：`{ID前缀}_q{4位编号}` （例：`285acd89_q0001`）
+- **音频文件**：`{ID前缀}_{type}.mp3` （例：`285acd89_audio_simple.mp3`）
+- **元数据文件**：`{ID前缀}_meta.json` （例：`285acd89_meta.json`）
+- **ID 前缀**：取原始 ID 的前 8 位字符，无 ID 时使用 `q0001` 格式
+
+### 命名优势
+
+- **快速识别**：通过 ID 前缀快速定位问题
+- **避免冲突**：每个问题的 ID 是唯一的，确保文件名不重复
+- **批量管理**：在处理大量问题时更容易管理和查找
+- **兼容性**：保留问题编号作为备用标识
 
 ## ⚙️ 高级功能
 

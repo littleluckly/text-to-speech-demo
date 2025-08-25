@@ -42,7 +42,7 @@ class SafeBatchProcessor:
         self.log_file = self.output_dir / "batch_processing.log"
         
         # 创建输出目录
-        self.output_dir.mkdir(exist_ok=True)
+        self.output_dir.mkdir(parents=True, exist_ok=True)
         
     def log(self, message: str):
         """记录日志"""
@@ -84,33 +84,52 @@ class SafeBatchProcessor:
     
     async def get_question_blocks(self) -> List[str]:
         """获取所有问题块"""
-        parser = MarkdownQuestionParser(self.input_file, str(self.output_dir))
-        
         # 读取文件内容
         with open(self.input_file, 'r', encoding='utf-8') as f:
             content = f.read()
         
-        # 解析问题块（使用原始解析逻辑）
-        lines = content.split('\n')
+        # 使用与主脚本相同的解析逻辑（来自 question_to_speech.py）
+        import re
+        
+        # 寻找所有frontmatter块的位置（以---开始的行）
         frontmatter_starts = []
+        lines = content.split('\n')
         
         for i, line in enumerate(lines):
             if line.strip() == '---':
-                if i == 0 or (i + 1 < len(lines) and any(keyword in lines[i + 1] for keyword in ['id:', 'type:', 'difficulty:', 'tags:'])):
+                # 检查这是否是frontmatter的开始
+                # 对于第一行或者在接下来的几行中包含id:/type:等字段的情况
+                if i == 0:
                     frontmatter_starts.append(i)
+                else:
+                    # 检查后面的几行是否包含 YAML 字段
+                    found_yaml_field = False
+                    for check_line in range(i + 1, min(i + 5, len(lines))):
+                        if any(keyword in lines[check_line] for keyword in ['id:', 'type:', 'difficulty:', 'tags:']):
+                            found_yaml_field = True
+                            break
+                    if found_yaml_field:
+                        frontmatter_starts.append(i)
         
-        question_blocks = []
+        question_blocks = []  # 用于存储处理后的问题块
+        
+        print(f"Found {len(frontmatter_starts)} frontmatter start positions: {frontmatter_starts[:5]}")
+        
+        # 根据frontmatter位置分割内容
         for i, start_line in enumerate(frontmatter_starts):
+            # 确定当前块的结束位置
             if i + 1 < len(frontmatter_starts):
                 end_line = frontmatter_starts[i + 1]
             else:
                 end_line = len(lines)
             
+            # 提取当前问题块的所有行
             block_lines = lines[start_line:end_line]
             block_content = '\n'.join(block_lines).strip()
             
             if block_content and '题目' in block_content:
                 question_blocks.append(block_content)
+                print(f"Added question block {len(question_blocks)} (first 50 chars): {block_content[:50]}...")
         
         return question_blocks
     
@@ -129,7 +148,8 @@ class SafeBatchProcessor:
             await parser.create_question_directory(question_data, question_num)
             
             question_id = question_data['metadata'].get('id', f'q{question_num:04d}')
-            self.log(f"✓ 问题 {question_num} 处理完成 (ID: {question_id[:8]})")
+            id_prefix = str(question_id)[:8] if question_id else f'q{question_num:04d}'
+            self.log(f"✓ 问题 {question_num} 处理完成 (ID: {id_prefix}, 目录: q{question_num:04d}_{id_prefix})")
             return True
             
         except Exception as e:

@@ -17,7 +17,7 @@ function sayhello() {
 
 beforeCreate → created → beforeMount → mounted → beforeUpdate → updated → beforeDestroy → destroyed
 
-## **📘 详细解析：**
+**📘 详细解析：**
 
 - beforeCreate：实例刚初始化，data、methods 均不可用。
 - created：实例创建完成，可访问/修改数据，但 DOM 未生成；适合发异步请求。
@@ -41,7 +41,7 @@ tags: [vue, reactivity]
 
 ## **✅ 精简答案：** Vue2 用 Object.defineProperty；Vue3 用 Proxy。
 
-## **📘 详细解析：**
+**📘 详细解析：**
 
 - Vue2：遍历 data 中所有属性，通过 Object.defineProperty 重写 getter / setter 完成依赖收集与发布订阅。
 - 缺陷：无法监听新增/删除属性、数组索引/长度变化。
@@ -60,7 +60,7 @@ tags: [vue, version]
 
 ## **✅ 精简答案：** TS 重写、Composition API、Proxy 响应式、编译优化、多根节点、生命周期调整、打包瘦身等。
 
-## **📘 详细解析：**
+**📘 详细解析：**
 
 - 源码全部用 TypeScript 重写。
 - 新增 Composition API（setup），逻辑复用更灵活；Options API 仍可用。
@@ -84,7 +84,7 @@ tags: [vue, mvvm]
 
 ## **✅ 精简答案：** Model-View-ViewModel，数据(Model)与视图(View)通过 ViewModel 双向绑定。
 
-## **📘 详细解析：**  
+**📘 详细解析：**  
 Model 负责数据，View 负责 UI，ViewModel 作为桥梁：
 
 - 自动把 Model 数据渲染到 View；
@@ -104,7 +104,7 @@ tags: [vue, array]
 
 ## **✅ 精简答案：** 重写数组 7 个原型方法（push/pop/shift/unshift/splice/sort/reverse）。
 
-## **📘 详细解析：**  
+**📘 详细解析：**  
 Vue 把 data 中的数组隐式原型指向自定义的拦截器，方法调用时先执行原生逻辑，再触发依赖通知。若数组元素为引用类型，继续递归侦测。通过这种方式捕获变更并驱动视图更新。
 
 ---
@@ -120,7 +120,7 @@ tags: [vue, v-model]
 
 ## **✅ 精简答案：** 语法糖，等于 :value + @input（或对应事件）。
 
-## **📘 详细解析：**
+**📘 详细解析：**
 
 - 普通 input：`:value` 绑定数据，`@input` 事件把 $event.target.value 写回数据。
 - 组件：通过 model 选项自定义 prop 与 event；例如 checkbox 用 :checked + @change。
@@ -136,14 +136,14 @@ tags: [vue, diff]
 
 ## **题目：** 描述 Vue2 与 Vue3 渲染器 diff 算法的核心思想。
 
-## **✅ 精简答案：**
+**✅ 精简答案：**
 
 - Vue2：双端比较 + key；O(n)。
 - Vue3：静态提升 + 动态位运算标记 + 最长递增子序列；更快。
 
 ---
 
-## **📘 详细解析：**
+**📘 详细解析：**
 
 - Vue2：同层比较，新旧 children 两端向中间遍历，借助 key 复用节点，减少移动次数。
 - Vue3：
@@ -162,7 +162,7 @@ tags: [vue, communication]
 
 ## **题目：** 列举 Vue 中父子、兄弟、跨级组件的通信方式及其原理。
 
-## **✅ 精简答案：**
+**✅ 精简答案：**
 
 - 父子：props / $emit / $parent / $children / ref / provide-inject
 - 兄弟：EventBus / Vuex
@@ -170,7 +170,7 @@ tags: [vue, communication]
 
 ---
 
-## **📘 详细解析：**
+**📘 详细解析：**
 
 - props 向下传递，$emit 向上触发事件。
 - $parent / $children 直接访问实例，强耦合，不推荐。
@@ -190,14 +190,14 @@ tags: [vue, router]
 
 ## **题目：** Vue 路由 hash 与 history 模式的实现原理？
 
-## **✅ 精简答案：**
+**✅ 精简答案：**
 
 - hash：监听 location.hash + onhashchange 事件。
 - history：基于 HTML5 history.pushState / replaceState + popstate 事件。
 
 ---
 
-## **📘 详细解析：**
+**📘 详细解析：**
 
 - hash 模式利用 URL 中 # 后面的变化，不触发服务端请求，兼容性好。
 - history 模式 URL 更干净，需要服务端配置 404 回退到 index.html，否则刷新 404。
@@ -215,7 +215,7 @@ tags: [vue, directive]
 
 ## **✅ 精简答案：** v-if 真正增删 DOM；v-show 仅切换 display。
 
-## **📘 详细解析：**
+**📘 详细解析：**
 
 - v-if=false 时节点被移除，条件为真时重新创建并插入，切换成本大；适合不常切换场景。
 - v-show=false 时添加 style="display:none"，节点仍在 DOM，适合频繁显示/隐藏。
@@ -233,7 +233,7 @@ tags: [vue, keep-alive]
 
 ## **✅ 精简答案：** include/exclude 条件缓存；内部使用 LRU 缓存策略；提供 activated/deactivated 生命周期。
 
-## **📘 详细解析：**
+**📘 详细解析：**
 
 - include/exclude 可用字符串、正则或数组匹配组件 name 决定缓存与否。
 - 缓存对象按最近最少使用淘汰，避免内存泄漏。
@@ -252,7 +252,7 @@ tags: [vue, nextTick]
 
 ## **✅ 精简答案：** 在下次 DOM 更新循环结束后执行回调；内部按优先级使用 Promise → MutationObserver → setImmediate → setTimeout。
 
-## **📘 详细解析：**  
+**📘 详细解析：**  
 Vue 的 DOM 更新是异步的。多次数据变更合并成一次渲染，nextTick 把回调推入微任务队列，确保拿到更新后的 DOM；常用于操作更新后的视图。
 
 ---
@@ -268,7 +268,7 @@ tags: [vue, ssr]
 
 ## **✅ 精简答案：** 服务端执行渲染生成 HTML 字符串返回客户端；优点 SEO、首屏快，缺点开发限制、服务器负载高。
 
-## **📘 详细解析：**
+**📘 详细解析：**
 
 - 流程：Node 运行 Vue → 创建实例 → 渲染为字符串 → 客户端激活 (hydrate)。
 - 仅 beforeCreate/created 在服务端执行，其他钩子无。
@@ -288,7 +288,7 @@ tags: [vue, data]
 
 ## **✅ 精简答案：** 保证每个组件实例拥有独立数据，避免引用共享导致状态污染。
 
-## **📘 详细解析：**  
+**📘 详细解析：**  
 组件复用时返回同一构造函数，若 data 为对象，则所有实例共享同一份引用；使用函数每次返回新对象，确保数据隔离。
 
 ---
@@ -304,7 +304,7 @@ tags: [vue, computed]
 
 ## **✅ 精简答案：** 每个计算属性创建 lazy Watcher，依赖收集后缓存值，通过 dirty 标记实现按需重计算。
 
-## **📘 详细解析：**
+**📘 详细解析：**
 
 - 初始化时遍历 computed 属性，生成带有 lazy=true 的 Watcher，保存 value 与 dirty。
 - 首次读取时若 dirty 为 true 则求值并缓存，随后 dirty=false。
@@ -324,7 +324,7 @@ tags: [vue, compiler]
 
 ## **✅ 精简答案：** parse → optimize → generate，最终产出 render 函数。
 
-## **📘 详细解析：**
+**📘 详细解析：**
 
 - parse：将 template 模板解析成 AST（抽象语法树）。
 - optimize：遍历 AST，标记静态节点与静态根，减少 diff 时的比对范围。
@@ -341,14 +341,14 @@ tags: [vue, comparison]
 
 ## **题目：** Vue 与 React、Angular 的主要区别？
 
-## **✅ 精简答案：**
+**✅ 精简答案：**
 
 - Vue vs React：Vue 模板 + 响应式，React JSX + setState；Vue 官方维护路由/状态，React 社区生态大。
 - Vue vs Angular：Vue 轻量、学习曲线低；Angular 全家桶 + TypeScript + 强约束。
 
 ---
 
-## **📘 详细解析：**
+**📘 详细解析：**
 
 - Vue 与 React 都采用虚拟 DOM，核心理念相近。Vue 提供双向绑定、指令系统，React 坚持单向数据流。
 - Vue 官方维护 vue-router、vuex；React 交给社区 (react-router, redux, mobx)。
@@ -367,7 +367,7 @@ tags: [vue, watch, computed]
 
 ## **✅ 精简答案：** computed 缓存且多对一，watch 无缓存且一对多，支持异步；用 computed 算值，用 watch 做副作用。
 
-## **📘 详细解析：**
+**📘 详细解析：**
 
 - computed：依赖值不变直接返回缓存，必须有返回值；适合计算衍生值。
 - watch：监听单一或多个数据源，可异步；可配置 deep/immediate；适合请求接口、复杂业务逻辑。
@@ -386,7 +386,7 @@ tags: [vue, modifiers]
 
 ## **题目：** 列举常用 Vue 修饰符。
 
-## **✅ 精简答案：**
+**✅ 精简答案：**
 
 - 事件：.stop .prevent .capture .self .once .passive
 - 按键：.enter .tab .esc .space .up .down …
@@ -394,7 +394,7 @@ tags: [vue, modifiers]
 
 ---
 
-## **📘 详细解析：**
+**📘 详细解析：**
 
 - 事件修饰符简化 DOM 事件处理；
 - 按键修饰符支持键盘、鼠标、系统键；
@@ -413,7 +413,7 @@ tags: [vue, performance]
 
 ## **✅ 精简答案：** 编码阶段 + 打包阶段 + 用户体验，多管齐下。
 
-## **📘 详细解析：**
+**📘 详细解析：**
 
 - 编码：减少 data 量，v-if/v-show 区分使用，v-for 加 key，路由懒加载，keep-alive，防抖节流，动态导入第三方库，图片懒加载，长列表虚拟滚动。
 - 打包：Tree-shaking、Scope Hoisting、CDN 外链、多线程构建、splitChunks、压缩 Gzip、source-map 关闭生产。
@@ -432,7 +432,7 @@ tags: [vue, spa, first-screen]
 
 ## **✅ 精简答案：** CDN、缓存、懒加载、预渲染、压缩、http2、骨架屏。
 
-## **📘 详细解析：**
+**📘 详细解析：**
 
 - 请求：第三方库 CDN，减少主包体积。
 - 缓存：强缓存 + 文件指纹；服务端开启 gzip。
@@ -454,7 +454,7 @@ tags: [vue, key]
 
 ## **✅ 精简答案：** 为节点提供唯一标识，提升 diff 效率，避免就地复用导致状态错乱。
 
-## **📘 详细解析：**  
+**📘 详细解析：**  
 diff 算法同级比对时，通过 key 判断节点是否可复用，减少 DOM 移动与销毁；无 key 时按顺序就地复用，可能造成表单错位、过渡失效等问题。
 
 ---
@@ -470,7 +470,7 @@ tags: [vue, component]
 
 ## **✅ 精简答案：** 递归调用、keep-alive 缓存、跨级通信、调试工具显示。
 
-## **📘 详细解析：**
+**📘 详细解析：**
 
 - name 用于自身递归组件 <my-folder>。
 - keep-alive 的 include/exclude 按 name 匹配。
@@ -490,7 +490,7 @@ tags: [vue, ref]
 
 ## **✅ 精简答案：** 注册 DOM 或组件引用，方便父级直接访问。
 
-## **📘 详细解析：**
+**📘 详细解析：**
 
 - 在普通元素上 ref 获取原生 DOM；
 - 在组件上 ref 获取组件实例，可直接调用内部方法或访问 data。
@@ -508,7 +508,7 @@ tags: [vue, lifecycle, http]
 
 ## **✅ 精简答案：** created；此时数据已初始化，SSR 兼容，避免闪屏。
 
-## **📘 详细解析：**
+**📘 详细解析：**
 
 - created 中 props/data 已可用，能立即发请求，减少首屏等待；
 - SSR 只执行 beforeCreate/created，保证同构代码一致；
