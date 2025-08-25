@@ -20,7 +20,9 @@ from question_to_speech import MarkdownQuestionParser
 class SafeBatchProcessor:
     def __init__(self, input_file: str, output_dir: str, 
                  batch_size_range: tuple = (3, 5),
-                 interval_range: tuple = (5, 15)):
+                 interval_range: tuple = (5, 15),
+                 skip_existing: bool = False,
+                 debug: bool = False):
         """
         安全批量处理器
         
@@ -29,11 +31,15 @@ class SafeBatchProcessor:
             output_dir: 输出目录路径
             batch_size_range: 每批处理的问题数量范围 (最小, 最大)
             interval_range: 批次间隔时间范围 (最小分钟, 最大分钟)
+            skip_existing: 是否跳过已经转换成功的题目
+            debug: 是否开启调试模式
         """
         self.input_file = input_file
         self.output_dir = Path(output_dir)
         self.batch_size_range = batch_size_range
         self.interval_range = interval_range
+        self.skip_existing = skip_existing
+        self.debug = debug
         
         # 状态文件，用于记录处理进度
         self.progress_file = self.output_dir / "batch_progress.json"
@@ -43,6 +49,51 @@ class SafeBatchProcessor:
         
         # 创建输出目录
         self.output_dir.mkdir(parents=True, exist_ok=True)
+        
+        # 已存在的问题集合（如果启用跳过功能）
+        self.existing_questions = set()
+        if self.skip_existing:
+            self._scan_existing_questions()
+        
+    def _scan_existing_questions(self):
+        """扫描输出目录中已存在的问题目录"""
+        import re
+        
+        if not self.output_dir.exists():
+            self.log("输出目录不存在，无法扫描已存在的问题")
+            return
+        
+        # 扫描目录中的问题文件夹（格式: q{number}_{id}）
+        question_pattern = re.compile(r'^q(\d+)_([a-f0-9]{8})$')
+        
+        existing_count = 0
+        for item in self.output_dir.iterdir():
+            if item.is_dir():
+                match = question_pattern.match(item.name)
+                if match:
+                    question_num = int(match.group(1))
+                    question_id = match.group(2)
+                    
+                    # 检查目录中是否包含必要的文件
+                    required_files = [
+                        f'q{question_num:04d}_{question_id}_audio_simple.mp3',
+                        f'q{question_num:04d}_{question_id}_audio_question.mp3', 
+                        f'q{question_num:04d}_{question_id}_audio_analysis.mp3',
+                        f'q{question_num:04d}_{question_id}_meta.json'
+                    ]
+                    
+                    all_files_exist = all((item / file_name).exists() for file_name in required_files)
+                    
+                    if all_files_exist:
+                        self.existing_questions.add(question_num)
+                        existing_count += 1
+                    else:
+                        self.log(f"问题 {question_num} 目录存在但文件不完整，将重新处理")
+        
+        if existing_count > 0:
+            self.log(f"扫描完成，发现 {existing_count} 个已存在的问题: {sorted(list(self.existing_questions))[:10]}{'...' if len(self.existing_questions) > 10 else ''}")
+        else:
+            self.log("未发现已存在的问题，将处理所有问题")
         
     def log(self, message: str):
         """记录日志"""
@@ -135,6 +186,11 @@ class SafeBatchProcessor:
     
     async def process_single_question(self, question_block: str, question_num: int) -> bool:
         """处理单个问题"""
+        # 检查是否要跳过已存在的问题
+        if self.skip_existing and question_num in self.existing_questions:
+            self.log(f"✓ 问题 {question_num} 已存在，跳过处理")
+            return True
+        
         try:
             parser = MarkdownQuestionParser(self.input_file, str(self.output_dir))
             
@@ -193,6 +249,10 @@ class SafeBatchProcessor:
         self.log(f"输出目录: {self.output_dir}")
         self.log(f"批次大小范围: {self.batch_size_range}")
         self.log(f"间隔时间范围: {self.interval_range[0]}-{self.interval_range[1]} 分钟")
+        if self.skip_existing:
+            self.log(f"跳过已存在问题: 开启 (已发现 {len(self.existing_questions)} 个已存在问题)")
+        else:
+            self.log("跳过已存在问题: 关闭")
         self.log("=" * 60)
         
         # 获取所有问题块
@@ -211,16 +271,45 @@ class SafeBatchProcessor:
             progress['start_time'] = datetime.now().isoformat()
         
         self.log(f"总共发现 {total_questions} 个问题")
+        if self.skip_existing and self.existing_questions:
+            remaining_questions = total_questions - len(self.existing_questions)
+            self.log(f"已存在问题: {len(self.existing_questions)} 个")
+            self.log(f"待处理问题: {remaining_questions} 个")
         self.log(f"已处理 {progress['processed_questions']} 个问题")
         
         # 从上次停止的地方继续
         current_index = progress['processed_questions']
         
+        # 如果启用跳过功能，调整进度计数
+        if self.skip_existing:
+            # 重新计算实际需要处理的问题数
+            questions_to_process = total_questions - len(self.existing_questions)
+            already_processed_new = 0
+            
+            # 计算已经处理的新问题数量（排除跳过的）
+            for i in range(1, current_index + 1):
+                if i not in self.existing_questions:
+                    already_processed_new += 1
+            
+            self.log(f"跳过模式: 总问题 {total_questions} 个，跳过 {len(self.existing_questions)} 个，待处理 {questions_to_process} 个")
+            self.log(f"新问题中已处理 {already_processed_new} 个")
+            
+            # 如果所有问题都已经存在，直接结束
+            if questions_to_process == 0:
+                self.log("所有问题都已存在，无需处理")
+                return
+        
         while current_index < total_questions:
+            if self.debug:
+                self.log(f"[调试] 开始处理循环: current_index={current_index}, total_questions={total_questions}")
+            
             # 计算本批次大小
             batch_size = self.calculate_batch_size()
             remaining = total_questions - current_index
             actual_batch_size = min(batch_size, remaining)
+            
+            if self.debug:
+                self.log(f"[调试] 批次大小: {batch_size}, 剩余: {remaining}, 实际处理: {actual_batch_size}")
             
             self.log(f"\n--- 批次 {progress['completed_batches'] + 1} ---")
             self.log(f"处理问题 {current_index + 1}-{current_index + actual_batch_size} / {total_questions}")
@@ -247,15 +336,22 @@ class SafeBatchProcessor:
                 interval_seconds = self.calculate_next_interval()
                 interval_minutes = interval_seconds / 60
                 
-                self.log(f"等待 {interval_minutes:.1f} 分钟后处理下一批次...")
-                self.log(f"预计完成时间: {datetime.fromtimestamp(time.time() + interval_seconds * (total_questions - current_index) / actual_batch_size).strftime('%Y-%m-%d %H:%M:%S')}")
-                
-                # 分段显示倒计时
-                for remaining_time in range(interval_seconds, 0, -60):
-                    minutes_left = remaining_time // 60
-                    if minutes_left > 0:
-                        self.log(f"剩余等待时间: {minutes_left} 分钟")
-                    await asyncio.sleep(min(60, remaining_time))
+                # 如果间隔时间为0或很小，则跳过等待
+                if interval_seconds <= 0:
+                    self.log("间隔时间为0，立即处理下一批次...")
+                elif interval_seconds < 60:
+                    self.log(f"等待 {interval_seconds} 秒后处理下一批次...")
+                    await asyncio.sleep(interval_seconds)
+                else:
+                    self.log(f"等待 {interval_minutes:.1f} 分钟后处理下一批次...")
+                    self.log(f"预计完成时间: {datetime.fromtimestamp(time.time() + interval_seconds * (total_questions - current_index) / actual_batch_size).strftime('%Y-%m-%d %H:%M:%S')}")
+                    
+                    # 分段显示倒计时
+                    for remaining_time in range(interval_seconds, 0, -60):
+                        minutes_left = remaining_time // 60
+                        if minutes_left > 0:
+                            self.log(f"剩余等待时间: {minutes_left} 分钟")
+                        await asyncio.sleep(min(60, remaining_time))
         
         # 处理完成
         total_time = (datetime.now() - datetime.fromisoformat(progress['start_time'])).total_seconds()
@@ -272,19 +368,28 @@ async def main():
     """主函数"""
     if len(sys.argv) < 3:
         print("使用方法:")
-        print("  python3 question_to_speech_batch_safe.py <input_file> <output_dir> [batch_size_min-max] [interval_min-max]")
+        print("  python3 question_to_speech_batch_safe.py <input_file> <output_dir> [batch_size_min-max] [interval_min-max] [--skip-existing] [--debug]")
         print("示例:")
         print("  python3 question_to_speech_batch_safe.py vue_questions.md output")
         print("  python3 question_to_speech_batch_safe.py vue_questions.md output 3-5 5-15")
-        print("  python3 question_to_speech_batch_safe.py vue_questions.md output 2-4 10-20")
+        print("  python3 question_to_speech_batch_safe.py vue_questions.md output 2-4 10-20 --skip-existing")
+        print("  python3 question_to_speech_batch_safe.py vue_questions.md output 1-1 0-0 --skip-existing --debug")
+        print("参数说明:")
+        print("  --skip-existing: 跳过已经转换成功的题目，从输出目录扫描已存在的问题文件夹")
+        print("  --debug: 开启调试模式，显示更详细的日志信息")
         sys.exit(1)
     
     input_file = sys.argv[1]
     output_dir = sys.argv[2]
     
+    # 检查是否启用跳过已存在的问题
+    skip_existing = '--skip-existing' in sys.argv
+    # 检查是否开启调试模式
+    debug = '--debug' in sys.argv
+    
     # 解析批次大小范围
     batch_size_range = (3, 5)  # 默认值
-    if len(sys.argv) > 3:
+    if len(sys.argv) > 3 and not sys.argv[3].startswith('--'):
         try:
             batch_parts = sys.argv[3].split('-')
             batch_size_range = (int(batch_parts[0]), int(batch_parts[1]))
@@ -293,7 +398,7 @@ async def main():
     
     # 解析间隔时间范围
     interval_range = (5, 15)  # 默认值
-    if len(sys.argv) > 4:
+    if len(sys.argv) > 4 and not sys.argv[4].startswith('--'):
         try:
             interval_parts = sys.argv[4].split('-')
             interval_range = (int(interval_parts[0]), int(interval_parts[1]))
@@ -306,7 +411,7 @@ async def main():
         sys.exit(1)
     
     # 创建处理器并运行
-    processor = SafeBatchProcessor(input_file, output_dir, batch_size_range, interval_range)
+    processor = SafeBatchProcessor(input_file, output_dir, batch_size_range, interval_range, skip_existing, debug)
     await processor.run()
 
 if __name__ == "__main__":
