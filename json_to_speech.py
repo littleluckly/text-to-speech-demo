@@ -72,8 +72,8 @@ class JsonToSpeechConverter:
         # 移除Markdown代码块（```xxx```格式）
         text = re.sub(r'\`\`\`[^`]*\`\`\`', '', text, flags=re.DOTALL)
         
-        # 移除行内代码（`code`格式）
-        text = re.sub(r'`([^`]+)`', '', text)
+        # 移除行内代码的标识，但保留代码内容
+        text = re.sub(r'`([^`]+)`', r'\1', text)
         
         # 移除Markdown列表符号（-, *, +）
         text = re.sub(r'^\s*[-*+]\s+', '', text, flags=re.MULTILINE)
