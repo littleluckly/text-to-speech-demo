@@ -51,7 +51,7 @@ show_help() {
     echo "安全批量TTS处理脚本"
     echo ""
     echo "使用方法:"
-    echo "  $0 <模式> <输入文件> <输出目录>"
+    echo "  $0 <模式> <输入文件> <输出目录> [--skip-existing]"
     echo ""
     echo "模式选项:"
     echo "  conservative  - 保守模式: 每批2-3个问题，间隔10-20分钟 (推荐用于大文件)"
@@ -60,15 +60,21 @@ show_help() {
     echo "  test         - 测试模式: 每批1个问题，间隔0.5-1分钟  (调试用)"
     echo "  custom       - 自定义模式: 需要额外参数 <批次大小> <间隔时间>"
     echo ""
+    echo "可选参数:"
+    echo "  --skip-existing  - 跳过已经转换成功的题目，加速增量处理"
+    echo ""
     echo "示例:"
     echo "  $0 conservative large_questions.md output        # 大文件安全处理"
     echo "  $0 balanced vue_questions.md output             # 标准处理"
     echo "  $0 aggressive small_questions.md output         # 快速处理"
     echo "  $0 test single_question.md test_output          # 测试单个问题"
     echo "  $0 custom questions.md output 2-4 8-12          # 自定义: 2-4个问题/批，8-12分钟间隔"
+    echo "  $0 balanced vue_questions.md output --skip-existing  # 跳过已完成的问题"
     echo ""
     echo "注意事项:"
     echo "  - 保守模式适合100+问题的大文件，可以有效避免API限制"
+    echo "  - 使用 --skip-existing 可以跳过已转换的问题，显著加速重复运行"
+    echo "  - 当批次内所有问题都已存在时，自动跳过等待，立即处理下一批次"
     echo "  - 处理会自动保存进度，可以随时中断和继续"
     echo "  - 生成的日志文件在输出目录中的 batch_processing.log"
     echo "  - 进度文件 batch_progress.json 记录处理状态"
@@ -126,6 +132,20 @@ main() {
     local input_file=$2
     local output_dir=$3
     
+    # 检查是否有 --skip-existing 参数
+    local skip_existing=""
+    local additional_params=""
+    
+    # 检查所有参数中是否包含 --skip-existing
+    for arg in "$@"; do
+        if [ "$arg" = "--skip-existing" ]; then
+            skip_existing="--skip-existing"
+            additional_params="$additional_params $skip_existing"
+            print_info "启用跳过已存在问题模式"
+            break
+        fi
+    done
+    
     # 检查输入文件
     if [ ! -f "$input_file" ]; then
         print_error "输入文件不存在: $input_file"
@@ -147,8 +167,8 @@ main() {
             ;;
         "balanced")
             batch_size="3-5"
-            interval="5-15"
-            print_info "使用平衡模式: 每批3-5个问题，间隔5-15分钟"
+            interval="5-10"
+            print_info "使用平衡模式: 每批3-5个问题，间隔5-10分钟"
             ;;
         "aggressive")
             batch_size="5-8"
@@ -193,7 +213,18 @@ main() {
     print_success "开始批量处理..."
     echo ""
     
-    python3 question_to_speech_batch_safe.py "$input_file" "$output_dir" "$batch_size" "$interval"
+    # 构建 Python 脚本命令
+    local python_cmd="python3 question_to_speech_batch_safe.py \"$input_file\" \"$output_dir\" \"$batch_size\" \"$interval\"$additional_params"
+    
+    if [ -n "$skip_existing" ]; then
+        print_info "使用跳过模式: 已存在的问题将被跳过，批次内全部存在时不等待直接进入下一批次"
+    fi
+    
+    print_info "执行命令: $python_cmd"
+    echo ""
+    
+    # 执行 Python 脚本
+    eval $python_cmd
     
     if [ $? -eq 0 ]; then
         print_success "批量处理完成!"

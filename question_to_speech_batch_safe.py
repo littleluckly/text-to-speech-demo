@@ -212,9 +212,11 @@ class SafeBatchProcessor:
             self.log(f"✗ 问题 {question_num} 处理出错: {e}")
             return False
     
-    async def process_batch(self, question_blocks: List[str], start_index: int, batch_size: int) -> int:
+    async def process_batch(self, question_blocks: List[str], start_index: int, batch_size: int) -> Dict[str, int]:
         """处理一批问题"""
         success_count = 0
+        skipped_count = 0
+        failed_count = 0
         
         for i in range(batch_size):
             if start_index + i >= len(question_blocks):
@@ -223,14 +225,27 @@ class SafeBatchProcessor:
             question_num = start_index + i + 1
             block = question_blocks[start_index + i]
             
-            if await self.process_single_question(block, question_num):
-                success_count += 1
+            # 检查是否要跳过已存在的问题
+            if self.skip_existing and question_num in self.existing_questions:
+                skipped_count += 1
+                if self.debug:
+                    self.log(f"[调试] 问题 {question_num} 已存在，跳过处理")
+            else:
+                if await self.process_single_question(block, question_num):
+                    success_count += 1
+                else:
+                    failed_count += 1
             
             # 问题之间小间隔（1-3秒）
             if i < batch_size - 1:
                 await asyncio.sleep(random.uniform(1, 3))
         
-        return success_count
+        return {
+            'success': success_count,
+            'skipped': skipped_count,
+            'failed': failed_count,
+            'total': success_count + skipped_count + failed_count
+        }
     
     def calculate_next_interval(self) -> int:
         """计算下次处理的间隔时间（秒）"""
@@ -315,7 +330,7 @@ class SafeBatchProcessor:
             self.log(f"处理问题 {current_index + 1}-{current_index + actual_batch_size} / {total_questions}")
             
             # 处理当前批次
-            success_count = await self.process_batch(question_blocks, current_index, actual_batch_size)
+            batch_result = await self.process_batch(question_blocks, current_index, actual_batch_size)
             
             # 更新进度
             current_index += actual_batch_size
@@ -323,16 +338,26 @@ class SafeBatchProcessor:
             progress['completed_batches'] += 1
             progress['last_batch_time'] = datetime.now().isoformat()
             
-            if success_count < actual_batch_size:
-                failed_count = actual_batch_size - success_count
-                progress['failed_questions'].extend(range(current_index - failed_count + 1, current_index + 1))
+            # 处理失败的问题
+            if batch_result['failed'] > 0:
+                failed_questions_start = current_index - batch_result['failed']
+                progress['failed_questions'].extend(range(failed_questions_start, failed_questions_start + batch_result['failed']))
             
             self.save_progress(progress)
             
-            self.log(f"批次完成: {success_count}/{actual_batch_size} 成功")
+            # 显示批次结果
+            if batch_result['skipped'] > 0:
+                self.log(f"批次完成: {batch_result['success']}/{actual_batch_size} 成功, {batch_result['skipped']} 个跳过, {batch_result['failed']} 个失败")
+            else:
+                self.log(f"批次完成: {batch_result['success']}/{actual_batch_size} 成功")
             
             # 如果还有剩余问题，等待间隔时间
             if current_index < total_questions:
+                # 检查是否整个批次都被跳过（即所有问题都已存在）
+                if self.skip_existing and batch_result['skipped'] == actual_batch_size and batch_result['success'] == 0 and batch_result['failed'] == 0:
+                    self.log("整个批次的问题都已存在，跳过等待，立即处理下一批次")
+                    continue  # 直接进入下一个循环，不等待
+                
                 interval_seconds = self.calculate_next_interval()
                 interval_minutes = interval_seconds / 60
                 
